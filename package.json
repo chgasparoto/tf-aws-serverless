@@ -2,16 +2,27 @@
   "name": "tf-aws-serverless",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "prebuild": "rimraf dist",
+    "build": "npx tsc",
+    "postbuild": "rm -rf node_modules && npm ci && cp -R node_modules dist/node_modules"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/chgasparoto/tf-aws-serverless.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "AWS",
+    "Lambda",
+    "S3",
+    "DynamoDB",
+    "SQS",
+    "SNS",
+    "API Gateway",
+    "Cognito"
+  ],
+  "author": "Cleber Gasparoto",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/chgasparoto/tf-aws-serverless/issues"
@@ -21,11 +32,13 @@
     "@aws-sdk/client-dynamodb": "^3.879.0",
     "@aws-sdk/client-s3": "^3.879.0",
     "@aws-sdk/lib-dynamodb": "^3.879.0",
+    "jsonwebtoken": "^9.0.2",
     "rimraf": "^6.0.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.152",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.3.0",
     "typescript": "^5.9.2"
   }
