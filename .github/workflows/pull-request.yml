@@ -42,7 +42,7 @@ jobs:
       - name: fmt
         run: terraform fmt -check -recursive
       - name: init (no backend)
-        run: terraform init -backend=false -input=false
+        run: terraform init -backend=true -backend-config="config/dev/backend.hcl"
       - name: validate
         run: terraform validate
 
@@ -93,13 +93,13 @@ jobs:
           key: ${{ runner.os }}-tf-${{ matrix.env }}-${{ hashFiles('**/*.tf', '**/*.tfvars', format('infra/terraform/{0}', matrix.bcfg)) }}
 
       - name: init
-        run: terraform init -backend=true -backend-config="{{{ matrix.bcfg }}"
+        run: terraform init -backend=true -backend-config=${{ matrix.bcfg }}
 
       - name: plan (detailed exit code)
         id: plan
         run: |
           set +e
-          terraform plan -var-file="${{ matrix.vfile }}" -out=${{ matrix.planout }} -detailed-exitcode
+          terraform plan -var-file=${{ matrix.vfile }} -out=${{ matrix.planout }} -detailed-exitcode
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           terraform show -no-color ${{ matrix.planout }} > ${{ matrix.artifact }} || true
