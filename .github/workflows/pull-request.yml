@@ -34,8 +34,8 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
       - name: fmt
         run: terraform fmt -check -recursive
-      - name: init (dev backend)
-        run: terraform init -backend-config=config/dev/backend.hcl
+      - name: init (no backend)
+        run: terraform init -backend=false -input=false
       - name: validate
         run: terraform validate
 
