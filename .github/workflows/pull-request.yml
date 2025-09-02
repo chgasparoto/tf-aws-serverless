@@ -39,15 +39,10 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Configure AWS (OIDC, dev)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.TF_DEV_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
       - name: fmt
         run: terraform fmt -check -recursive
       - name: init (no backend)
-        run: terraform init -backend=true -backend-config="config/dev/backend.hcl"
+        run: terraform init -backend=false -input=false
       - name: validate
         run: terraform validate
 
@@ -166,6 +161,6 @@ jobs:
       - name: init
         run: terraform init -backend=true -backend-config="config/dev/backend.hcl"
       - name: re-plan (safety)
-        run: terraform plan -var-file="config/dev/dev.tfvars" -out=tfplan-dev
+        run: terraform plan -var-file=config/dev/dev.tfvars -out=tfplan-dev
       - name: apply (dev)
         run: terraform apply -auto-approve tfplan-dev
