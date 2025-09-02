@@ -39,6 +39,11 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+      - name: Configure AWS (OIDC, dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: fmt
         run: terraform fmt -check -recursive
       - name: init (no backend)
