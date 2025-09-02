@@ -1,0 +1,78 @@
+name: Terraform Prod
+
+on:
+  push:
+    branches: ['main']
+
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_INPUT: false
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_WORKDIR: infra/terraform
+  TF_VERSION: 1.13.1
+
+jobs:
+  plan_prod:
+    name: Plan (prod)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    outputs:
+      artifact_name: plan-prod.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: Configure AWS (OIDC, prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: init
+        run: terraform init -backend-config=config/prod/backend.hcl
+      - name: plan
+        run: |
+          terraform plan -var-file=config/prod/prod.tfvars -out=tfplan-prod
+          terraform show -no-color tfplan-prod > plan-prod.txt
+      - name: upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-prod.txt
+          path: ${{ env.TF_WORKDIR }}/plan-prod.txt
+          retention-days: 7
+
+  apply_prod:
+    name: Manual Apply (prod)
+    runs-on: ubuntu-latest
+    needs: [plan_prod]
+    environment:
+      name: prod # add required reviewers to make this manual
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: Configure AWS (OIDC, prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: init
+        run: terraform init -backend-config=config/prod/backend.hcl
+      - name: fresh plan (safety before apply)
+        run: terraform plan -var-file=config/prod/prod.tfvars -out=tfplan-prod
+      - name: apply (manual-gated by environment)
+        run: terraform apply -auto-approve tfplan-prod

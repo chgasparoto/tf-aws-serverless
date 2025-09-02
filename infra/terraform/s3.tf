@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "lambda_artefacts" {
-  bucket = "${local.account_id}-lambda-artefacts"
+  bucket = "${local.account_id}-tf-serverless-lambda-artefacts"
 }
 
 resource "aws_s3_object" "lambda_artefact" {

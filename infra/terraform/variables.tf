@@ -13,7 +13,7 @@ variable "environment" {
 variable "service_name" {
   type        = string
   description = "The service name identifier"
-  default     = "tf-aws-serverless"
+  default     = "tf-serverless"
 }
 
 variable "domain_name" {
@@ -30,7 +30,7 @@ variable "domain_name" {
 variable "service_domain" {
   type        = string
   description = "The service domain"
-  default     = "api-tf-aws-serverless"
+  default     = "api-tf-serverless"
 }
 
 variable "cors_allow_headers" {

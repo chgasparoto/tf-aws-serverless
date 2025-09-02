@@ -38,3 +38,4 @@ plan.tfout
 08-serverless-app/dist/
 
 .env
+dist/
