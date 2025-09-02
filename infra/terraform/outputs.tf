@@ -23,9 +23,9 @@ output "api_custom_domain_url" {
 }
 
 output "tf_dev_role_arn" {
-  value = aws_iam_role.terraform_dev.arn
+  value = aws_iam_role.terraform_dev[0].arn
 }
 
 output "tf_prod_role_arn" {
-  value = aws_iam_role.terraform_prod.arn
+  value = aws_iam_role.terraform_prod[0].arn
 }
