@@ -39,10 +39,10 @@ jobs:
           role-to-assume: ${{ vars.TF_PROD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: init
-        run: terraform init -backend-config=config/prod/backend.hcl
+        run: terraform init -backend=true -backend-config="config/prod/backend.hcl"
       - name: plan
         run: |
-          terraform plan -var-file=config/prod/prod.tfvars -out=tfplan-prod
+          terraform plan -var-file="config/prod/prod.tfvars" -out=tfplan-prod
           terraform show -no-color tfplan-prod > plan-prod.txt
       - name: upload plan artifact
         uses: actions/upload-artifact@v4
@@ -71,8 +71,8 @@ jobs:
           role-to-assume: ${{ vars.TF_PROD_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: init
-        run: terraform init -backend-config=config/prod/backend.hcl
+        run: terraform init -backend=true -backend-config="config/prod/backend.hcl"
       - name: fresh plan (safety before apply)
-        run: terraform plan -var-file=config/prod/prod.tfvars -out=tfplan-prod
+        run: terraform plan -var-file="config/prod/prod.tfvars" -out=tfplan-prod
       - name: apply (manual-gated by environment)
         run: terraform apply -auto-approve tfplan-prod
