@@ -1,0 +1,166 @@
+name: Terraform PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: ['**']
+  workflow_dispatch:
+    inputs:
+      deploy_dev:
+        description: 'Deploy to dev'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_INPUT: false
+  TF_WORKDIR: infra/terraform
+  TF_VERSION: 1.13.1
+
+jobs:
+  fmt_validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: fmt
+        run: terraform fmt -check -recursive
+      - name: init (no backend)
+        run: terraform init -backend=false -input=false
+      - name: validate
+        run: terraform validate
+
+  plan_matrix:
+    name: Plan (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    needs: [fmt_validate]
+    strategy:
+      matrix:
+        include:
+          - env: dev
+            role: ${{ vars.TF_DEV_ROLE_ARN }}
+            bcfg: config/dev/backend.hcl
+            vfile: config/dev/dev.tfvars
+            planout: tfplan-dev
+            artifact: plan-dev.txt
+            title: 'Terraform plan (dev)'
+          - env: prod
+            role: ${{ vars.TF_PROD_ROLE_ARN }}
+            bcfg: config/prod/backend.hcl
+            vfile: config/prod/prod.tfvars
+            planout: tfplan-prod
+            artifact: plan-prod.txt
+            title: 'Terraform plan (prod)'
+    outputs:
+      dev_changed: ${{ steps.detect_dev.outputs.has_changes }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ matrix.role }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Cache .terraform
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.TF_WORKDIR }}/.terraform
+            ${{ env.TF_WORKDIR }}/.terraform.lock.hcl
+          key: ${{ runner.os }}-tf-${{ matrix.env }}-${{ hashFiles('**/*.tf', '**/*.tfvars', format('infra/terraform/{0}', matrix.bcfg)) }}
+
+      - name: init
+        run: terraform init -backend=true -backend-config=${{ matrix.bcfg }}
+
+      - name: plan (detailed exit code)
+        id: plan
+        run: |
+          set +e
+          terraform plan -var-file=${{ matrix.vfile }} -out=${{ matrix.planout }} -detailed-exitcode
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          terraform show -no-color ${{ matrix.planout }} > ${{ matrix.artifact }} || true
+          exit 0
+
+      - name: detect changes (dev only)
+        if: matrix.env == 'dev'
+        id: detect_dev
+        run: |
+          if [ "${{ steps.plan.outputs.exit_code }}" = "2" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ env.TF_WORKDIR }}/${{ matrix.artifact }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: comment plan to PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'No plan output available.';
+            try { body = fs.readFileSync('${{ env.TF_WORKDIR }}/${{ matrix.artifact }}', 'utf8'); } catch {}
+            const changed = '${{ matrix.env }}' === 'dev' && '${{ steps.detect_dev.outputs.has_changes }}' === 'true';
+            const title = `${{ matrix.title }} — ` + (changed ? 'changes detected' : 'completed');
+            const truncated = body.length > 60000 ? body.slice(0,60000) + '\n…(truncated)…' : body;
+            const comment = `### ${title}\n\n<details><summary>Show plan</summary>\n\n\`\`\`\n${truncated}\n\`\`\`\n</details>`;
+            github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body: comment });
+
+  deploy_dev:
+    name: Manual deploy to dev (from PR)
+    runs-on: ubuntu-latest
+    needs: [plan_matrix]
+    # Only run this job on a manual dispatch AND when the flag is set
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_dev == 'true'
+    environment:
+      name: dev # set required reviewers in Environments
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - name: Configure AWS (OIDC, dev)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_DEV_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: init
+        run: terraform init -backend=true -backend-config="config/dev/backend.hcl"
+      - name: re-plan (safety)
+        run: terraform plan -var-file=config/dev/dev.tfvars -out=tfplan-dev
+      - name: apply (dev)
+        run: terraform apply -auto-approve tfplan-dev

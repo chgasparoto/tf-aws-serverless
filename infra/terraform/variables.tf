@@ -1,7 +1,7 @@
 variable "aws_region" {
   type        = string
   description = "The region to deploy to"
-  default     = "eu-central-1"
+  default     = "sa-east-1"
 }
 
 variable "environment" {
@@ -13,7 +13,7 @@ variable "environment" {
 variable "service_name" {
   type        = string
   description = "The service name identifier"
-  default     = "curso-terraform"
+  default     = "tf-serverless"
 }
 
 variable "domain_name" {
@@ -30,7 +30,7 @@ variable "domain_name" {
 variable "service_domain" {
   type        = string
   description = "The service domain"
-  default     = "api-todos"
+  default     = "api-tf-serverless"
 }
 
 variable "cors_allow_headers" {

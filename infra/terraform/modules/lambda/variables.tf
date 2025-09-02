@@ -40,7 +40,7 @@ variable "description" {
 variable "runtime" {
   type        = string
   description = "The lambda runtime"
-  default     = "nodejs18.x"
+  default     = "nodejs22.x"
 }
 
 variable "architectures" {

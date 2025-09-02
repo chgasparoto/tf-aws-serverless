@@ -10,30 +10,22 @@ output "cognito_url" {
   value = "https://${aws_cognito_user_pool_domain.this.domain}.auth.${var.aws_region}.amazoncognito.com"
 }
 
-output "lambda_s3_invoke_url" {
-  value = module.lambda_s3.invoke_arn
-}
-
 output "lambda_dynamo_invoke_url" {
   value = module.lambda_dynamodb.invoke_arn
 }
 
-output "lambda_sqs_invoke_url" {
-  value = module.lambda_sqs.invoke_arn
-}
-
-output "api_url" {
-  value = aws_api_gateway_deployment.this.invoke_url
-}
-
-output "bucket_name_lambda_artefacts" {
-  value = aws_s3_bucket.lambda_artefacts.bucket
-}
+# output "api_url" {
+#   value = aws_api_gateway_deployment.this.invoke_url
+# }
 
 output "api_custom_domain_url" {
   value = local.has_domain_name ? "https://${aws_api_gateway_domain_name.this[0].domain_name}" : ""
 }
 
-output "bucket_name_todo" {
-  value = aws_s3_bucket.todo.bucket
+output "tf_dev_role_arn" {
+  value = var.environment == "dev" ? aws_iam_role.terraform_dev[0].arn : ""
+}
+
+output "tf_prod_role_arn" {
+  value = var.environment == "dev" ? aws_iam_role.terraform_prod[0].arn : ""
 }

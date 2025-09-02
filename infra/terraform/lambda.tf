@@ -6,7 +6,7 @@ resource "terraform_data" "build" {
 
   provisioner "local-exec" {
     command     = "npm run build"
-    working_dir = "${path.module}/../"
+    working_dir = "${path.module}/../../"
   }
 }
 
@@ -20,7 +20,7 @@ data "archive_file" "codebase" {
   depends_on = [terraform_data.build]
 
   type        = "zip"
-  source_dir  = "${path.module}/../dist"
+  source_dir  = "${path.module}/../../dist"
   output_path = "files/${random_uuid.build_id.result}.zip"
 }
 
