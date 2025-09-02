@@ -59,7 +59,9 @@ resource "aws_iam_role" "terraform_prod" {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com",
             # "token.actions.githubusercontent.com:sub" = "repo:chgasparoto/tf-aws-serverless:ref:refs/heads/main"
-            # we need it to be able to run the terraform plan job on PRs
+          },
+          StringLike = {
+            # allow PRs and feature branches
             "token.actions.githubusercontent.com:sub" = "repo:chgasparoto/tf-aws-serverless:*"
           }
         }
