@@ -1,0 +1,23 @@
+meta {
+  name: Create User
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://gqkpp4nrmg.execute-api.sa-east-1.amazonaws.com/dev/v1/users
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "test@example.com",
+    "thirdPartyServiceId": "service-123",
+    "thirdPartyServiceCredentials": "my-third-party-service-credentials"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

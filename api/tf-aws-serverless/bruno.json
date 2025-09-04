@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "tf-aws-serverless",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

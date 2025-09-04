@@ -19,6 +19,7 @@ resource "aws_api_gateway_resource" "v1" {
   path_part   = "v1"
 }
 
+# Todo endpoints
 resource "aws_api_gateway_resource" "todos" {
   rest_api_id = aws_api_gateway_rest_api.this.id
   parent_id   = aws_api_gateway_resource.v1.id
@@ -31,6 +32,64 @@ resource "aws_api_gateway_resource" "todo" {
   path_part   = "{todoId}"
 }
 
+# Auth endpoints
+resource "aws_api_gateway_resource" "auth" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.v1.id
+  path_part   = "auth"
+}
+
+resource "aws_api_gateway_resource" "signup" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.auth.id
+  path_part   = "signup"
+}
+
+# User management endpoints
+resource "aws_api_gateway_resource" "users" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.v1.id
+  path_part   = "users"
+}
+
+resource "aws_api_gateway_resource" "user" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.users.id
+  path_part   = "{userId}"
+}
+
+# Third-party service endpoints
+resource "aws_api_gateway_resource" "third_party" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.v1.id
+  path_part   = "third-party"
+}
+
+resource "aws_api_gateway_resource" "third_party_user" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party.id
+  path_part   = "users"
+}
+
+resource "aws_api_gateway_resource" "third_party_user_resource" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party_user.id
+  path_part   = "{userId}"
+}
+
+resource "aws_api_gateway_resource" "third_party_resource" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party_user_resource.id
+  path_part   = "resource"
+}
+
+resource "aws_api_gateway_resource" "third_party_resource_id" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party_resource.id
+  path_part   = "{resourceId}"
+}
+
+# Todo methods
 resource "aws_api_gateway_method" "todos" {
   rest_api_id   = aws_api_gateway_rest_api.this.id
   resource_id   = aws_api_gateway_resource.todos.id
@@ -51,6 +110,61 @@ resource "aws_api_gateway_method" "todo" {
   }
 }
 
+# Auth methods
+resource "aws_api_gateway_method" "signup" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.signup.id
+  authorization = "NONE"
+  http_method   = "POST"
+}
+
+# User management methods
+resource "aws_api_gateway_method" "users" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.users.id
+  authorization = "NONE"
+  http_method   = "POST"
+}
+
+resource "aws_api_gateway_method" "user" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.user.id
+  authorization = "COGNITO_USER_POOLS"
+  http_method   = "ANY"
+  authorizer_id = aws_api_gateway_authorizer.this.id
+
+  request_parameters = {
+    "method.request.path.userId" = true
+  }
+}
+
+# Third-party service methods
+resource "aws_api_gateway_method" "third_party_resources" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.third_party_resource.id
+  authorization = "COGNITO_USER_POOLS"
+  http_method   = "ANY"
+  authorizer_id = aws_api_gateway_authorizer.this.id
+
+  request_parameters = {
+    "method.request.path.userId" = true
+  }
+}
+
+resource "aws_api_gateway_method" "third_party_resource_by_id" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.third_party_resource_id.id
+  authorization = "COGNITO_USER_POOLS"
+  http_method   = "ANY"
+  authorizer_id = aws_api_gateway_authorizer.this.id
+
+  request_parameters = {
+    "method.request.path.userId"     = true
+    "method.request.path.resourceId" = true
+  }
+}
+
+# Todo integrations
 resource "aws_api_gateway_integration" "todos" {
   rest_api_id             = aws_api_gateway_rest_api.this.id
   resource_id             = aws_api_gateway_resource.todos.id
@@ -73,6 +187,67 @@ resource "aws_api_gateway_integration" "todo" {
   }
 }
 
+# Auth integrations
+resource "aws_api_gateway_integration" "signup" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.signup.id
+  http_method             = aws_api_gateway_method.signup.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_auth_signup.invoke_arn
+}
+
+# User management integrations
+resource "aws_api_gateway_integration" "users" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.users.id
+  http_method             = aws_api_gateway_method.users.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_user_management.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "user" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.user.id
+  http_method             = aws_api_gateway_method.user.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_user_management.invoke_arn
+
+  request_parameters = {
+    "integration.request.path.userId" = "method.request.path.userId"
+  }
+}
+
+# Third-party service integrations
+resource "aws_api_gateway_integration" "third_party_resources" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.third_party_resource.id
+  http_method             = aws_api_gateway_method.third_party_resources.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_third_party.invoke_arn
+
+  request_parameters = {
+    "integration.request.path.userId" = "method.request.path.userId"
+  }
+}
+
+resource "aws_api_gateway_integration" "third_party_resource_by_id" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.third_party_resource_id.id
+  http_method             = aws_api_gateway_method.third_party_resource_by_id.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_third_party.invoke_arn
+
+  request_parameters = {
+    "integration.request.path.userId"     = "method.request.path.userId"
+    "integration.request.path.resourceId" = "method.request.path.resourceId"
+  }
+}
+
 resource "aws_api_gateway_deployment" "this" {
   rest_api_id = aws_api_gateway_rest_api.this.id
 
@@ -87,10 +262,29 @@ resource "aws_api_gateway_deployment" "this" {
     redeployment = sha1(jsonencode([
       aws_api_gateway_resource.todos,
       aws_api_gateway_resource.todo,
+      aws_api_gateway_resource.auth,
+      aws_api_gateway_resource.signup,
+      aws_api_gateway_resource.users,
+      aws_api_gateway_resource.user,
+      aws_api_gateway_resource.third_party,
+      aws_api_gateway_resource.third_party_user,
+      aws_api_gateway_resource.third_party_user_resource,
+      aws_api_gateway_resource.third_party_resource,
+      aws_api_gateway_resource.third_party_resource_id,
       aws_api_gateway_method.todos,
       aws_api_gateway_method.todo,
+      aws_api_gateway_method.signup,
+      aws_api_gateway_method.users,
+      aws_api_gateway_method.user,
+      aws_api_gateway_method.third_party_resources,
+      aws_api_gateway_method.third_party_resource_by_id,
       aws_api_gateway_integration.todos,
       aws_api_gateway_integration.todo,
+      aws_api_gateway_integration.signup,
+      aws_api_gateway_integration.users,
+      aws_api_gateway_integration.user,
+      aws_api_gateway_integration.third_party_resources,
+      aws_api_gateway_integration.third_party_resource_by_id,
       aws_api_gateway_method.cors,
       aws_api_gateway_integration.cors,
       aws_api_gateway_method_response.cors,
