@@ -32,6 +32,19 @@ resource "aws_api_gateway_resource" "todo" {
   path_part   = "{todoId}"
 }
 
+# Auth endpoints
+resource "aws_api_gateway_resource" "auth" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.v1.id
+  path_part   = "auth"
+}
+
+resource "aws_api_gateway_resource" "signup" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.auth.id
+  path_part   = "signup"
+}
+
 # User management endpoints
 resource "aws_api_gateway_resource" "users" {
   rest_api_id = aws_api_gateway_rest_api.this.id
@@ -97,13 +110,20 @@ resource "aws_api_gateway_method" "todo" {
   }
 }
 
+# Auth methods
+resource "aws_api_gateway_method" "signup" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.signup.id
+  authorization = "NONE"
+  http_method   = "POST"
+}
+
 # User management methods
 resource "aws_api_gateway_method" "users" {
   rest_api_id   = aws_api_gateway_rest_api.this.id
   resource_id   = aws_api_gateway_resource.users.id
-  authorization = "COGNITO_USER_POOLS"
+  authorization = "NONE"
   http_method   = "POST"
-  authorizer_id = aws_api_gateway_authorizer.this.id
 }
 
 resource "aws_api_gateway_method" "user" {
@@ -165,6 +185,16 @@ resource "aws_api_gateway_integration" "todo" {
   request_parameters = {
     "integration.request.path.todoId" = "method.request.path.todoId"
   }
+}
+
+# Auth integrations
+resource "aws_api_gateway_integration" "signup" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.signup.id
+  http_method             = aws_api_gateway_method.signup.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_auth_signup.invoke_arn
 }
 
 # User management integrations
@@ -232,6 +262,8 @@ resource "aws_api_gateway_deployment" "this" {
     redeployment = sha1(jsonencode([
       aws_api_gateway_resource.todos,
       aws_api_gateway_resource.todo,
+      aws_api_gateway_resource.auth,
+      aws_api_gateway_resource.signup,
       aws_api_gateway_resource.users,
       aws_api_gateway_resource.user,
       aws_api_gateway_resource.third_party,
@@ -241,12 +273,14 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_resource.third_party_resource_id,
       aws_api_gateway_method.todos,
       aws_api_gateway_method.todo,
+      aws_api_gateway_method.signup,
       aws_api_gateway_method.users,
       aws_api_gateway_method.user,
       aws_api_gateway_method.third_party_resources,
       aws_api_gateway_method.third_party_resource_by_id,
       aws_api_gateway_integration.todos,
       aws_api_gateway_integration.todo,
+      aws_api_gateway_integration.signup,
       aws_api_gateway_integration.users,
       aws_api_gateway_integration.user,
       aws_api_gateway_integration.third_party_resources,

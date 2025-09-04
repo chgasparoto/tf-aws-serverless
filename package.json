@@ -17,8 +17,6 @@
     "Lambda",
     "S3",
     "DynamoDB",
-    "SQS",
-    "SNS",
     "API Gateway",
     "Cognito"
   ],
@@ -29,19 +27,20 @@
   },
   "homepage": "https://github.com/chgasparoto/tf-aws-serverless#readme",
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.879.0",
     "@aws-sdk/client-dynamodb": "^3.879.0",
     "@aws-sdk/client-s3": "^3.879.0",
     "@aws-sdk/client-secrets-manager": "^3.879.0",
     "@aws-sdk/lib-dynamodb": "^3.879.0",
     "jsonwebtoken": "^9.0.2",
-    "jwk-to-pem": "^3.0.1",
+    "jwk-to-pem": "^2.0.7",
     "rimraf": "^6.0.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.152",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/jwk-to-pem": "^3.0.0",
+    "@types/jwk-to-pem": "^2.0.3",
     "@types/node": "^24.3.0",
     "typescript": "^5.9.2"
   }

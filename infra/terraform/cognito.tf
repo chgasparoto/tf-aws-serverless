@@ -74,7 +74,7 @@ resource "aws_cognito_user_pool_client" "this" {
   default_redirect_uri                          = null
   enable_propagate_additional_user_context_data = false
   enable_token_revocation                       = true
-  explicit_auth_flows                           = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_PASSWORD_AUTH", "ALLOW_USER_SRP_AUTH"]
+  explicit_auth_flows                           = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_PASSWORD_AUTH", "ALLOW_USER_SRP_AUTH", "ALLOW_ADMIN_USER_PASSWORD_AUTH"]
   generate_secret                               = null
   id_token_validity                             = 60
   logout_urls                                   = []

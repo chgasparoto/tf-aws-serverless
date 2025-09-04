@@ -101,6 +101,44 @@ module "iam_role_user_management_lambda" {
   ]
 }
 
+module "iam_role_auth_signup_lambda" {
+  source = "./modules/iam"
+
+  iam_role_name   = "${local.namespaced_service_name}-auth-signup-lambda-role"
+  iam_policy_name = "${local.namespaced_service_name}-auth-signup-lambda-execute-policy"
+
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+
+  create_log_perms_for_lambda = true
+
+  permissions = [
+    {
+      sid = "AllowDynamoDBUserTableActions"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+      ]
+      resources = [
+        "arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${aws_dynamodb_table.users.name}",
+        "arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${aws_dynamodb_table.users.name}/index/*",
+      ]
+    },
+    {
+      sid = "AllowCognitoUserPoolActions"
+      actions = [
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminSetUserPassword",
+        "cognito-idp:AdminInitiateAuth",
+        "cognito-idp:AdminGetUser",
+      ]
+      resources = [
+        aws_cognito_user_pool.this.arn,
+      ]
+    }
+  ]
+}
+
 resource "aws_iam_role" "apigw_send_logs_cw" {
   count = var.create_logs_for_apigw ? 1 : 0
 

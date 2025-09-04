@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { verify } from 'jsonwebtoken';
-import { jwkToPem } from 'jwk-to-pem';
+import jwkToPem from 'jwk-to-pem';
 
 import { UserService } from 'services';
 import { User, UserSchema } from 'types';
@@ -67,16 +67,27 @@ async function verifyCognitoToken(token: string): Promise<any> {
   }
 }
 
-async function processUserRequest(
-  userId: string,
-  event: APIGatewayProxyEvent,
-): Promise<any> {
+async function processUserRequest(event: APIGatewayProxyEvent): Promise<any> {
   const method = event.httpMethod;
   const pathParams = event.pathParameters;
   const body = event.body ? JSON.parse(event.body) : {};
 
   switch (method) {
     case 'GET':
+      // GET requires authentication
+      const authHeader =
+        event?.headers?.Authorization || event?.headers?.authorization;
+      if (!authHeader) {
+        throw new Error('Authorization header required for profile access');
+      }
+
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : authHeader;
+
+      const decodedToken = await verifyCognitoToken(token);
+      const userId = decodedToken.sub;
+
       if (pathParams?.userId && pathParams.userId !== userId) {
         // Only allow users to access their own data
         throw new Error('Unauthorized access to user data');
@@ -84,20 +95,34 @@ async function processUserRequest(
       return await userService.findByUserId(userId);
 
     case 'POST':
-      // Create or update user profile
-      const userData: User = {
-        UserId: userId,
-        Email: body.email,
-        ThirdPartyServiceId: body.thirdPartyServiceId,
-        ThirdPartyServiceCredentials: body.thirdPartyServiceCredentials,
-      };
+      // POST can be used for both new user creation and updates
+      if (!body.email) {
+        throw new Error('Email is required');
+      }
 
-      // Validate user data
-      const validatedUser = UserSchema.parse(userData);
+      // Check if user already exists by email
+      const existingUser = await userService.findByEmail(body.email);
 
-      // Check if user already exists
-      const existingUser = await userService.findByUserId(userId);
       if (existingUser) {
+        // User exists, require authentication for updates
+        const authHeader =
+          event?.headers?.Authorization || event?.headers?.authorization;
+        if (!authHeader) {
+          throw new Error('Authorization header required for profile updates');
+        }
+
+        const token = authHeader.startsWith('Bearer ')
+          ? authHeader.substring(7)
+          : authHeader;
+
+        const decodedToken = await verifyCognitoToken(token);
+        const userId = decodedToken.sub;
+
+        // Verify the authenticated user matches the email
+        if (userId !== existingUser.UserId) {
+          throw new Error('Unauthorized access to user data');
+        }
+
         // Update existing user
         await userService.updateThirdPartyCredentials(
           userId,
@@ -105,19 +130,55 @@ async function processUserRequest(
         );
         return { message: 'User credentials updated successfully' };
       } else {
+        // New user creation - no authentication required
+        // Generate a temporary user ID (this will be replaced when they authenticate)
+        const tempUserId = `temp_${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}`;
+
+        const userData: User = {
+          UserId: tempUserId,
+          Email: body.email,
+          ThirdPartyServiceId: body.thirdPartyServiceId,
+          ThirdPartyServiceCredentials: body.thirdPartyServiceCredentials,
+        };
+
+        // Validate user data
+        const validatedUser = UserSchema.parse(userData);
+
         // Create new user
-        return await userService.create(validatedUser);
+        const createdUser = await userService.create(validatedUser);
+        return {
+          message:
+            'User created successfully. Please authenticate to complete setup.',
+          tempUserId: tempUserId,
+          email: body.email,
+        };
       }
 
     case 'PUT':
-      if (pathParams?.userId && pathParams.userId !== userId) {
+      // PUT requires authentication
+      const authHeaderPut =
+        event?.headers?.Authorization || event?.headers?.authorization;
+      if (!authHeaderPut) {
+        throw new Error('Authorization header required for profile updates');
+      }
+
+      const tokenPut = authHeaderPut.startsWith('Bearer ')
+        ? authHeaderPut.substring(7)
+        : authHeaderPut;
+
+      const decodedTokenPut = await verifyCognitoToken(tokenPut);
+      const userIdPut = decodedTokenPut.sub;
+
+      if (pathParams?.userId && pathParams.userId !== userIdPut) {
         throw new Error('Unauthorized access to user data');
       }
 
       // Update user credentials
       if (body.thirdPartyServiceCredentials) {
         await userService.updateThirdPartyCredentials(
-          userId,
+          userIdPut,
           body.thirdPartyServiceCredentials,
         );
         return { message: 'User credentials updated successfully' };
@@ -140,27 +201,8 @@ export const handler = async (
   }
 
   try {
-    // Extract and verify the Cognito token
-    const authHeader =
-      event.headers.Authorization || event.headers.authorization;
-    if (!authHeader) {
-      return errorResponse({ message: 'Authorization header required' }, 401);
-    }
-
-    const token = authHeader.startsWith('Bearer ')
-      ? authHeader.substring(7)
-      : authHeader;
-
-    const decodedToken = await verifyCognitoToken(token);
-    const userId = decodedToken.sub;
-
-    console.log({
-      message: 'Decoded token',
-      data: JSON.stringify(decodedToken),
-    });
-
     // Process the user management request
-    const result = await processUserRequest(userId, event);
+    const result = await processUserRequest(event);
 
     console.log({
       message: 'User management response',
@@ -174,16 +216,15 @@ export const handler = async (
       data: err,
     });
 
-    if (err instanceof Error && err.message.includes('Invalid token')) {
-      return errorResponse({ message: 'Unauthorized' }, 401);
-    }
-
     if (err instanceof ZodError) {
-      const message = err.errors.map((error) => error.message).join('\n');
+      const message = err.issues.map((error) => error.message).join('\n');
       return errorResponse({ message }, 400);
     }
 
     if (err instanceof Error) {
+      if (err.message.includes('Authorization header required')) {
+        return errorResponse({ message: err.message }, 401);
+      }
       if (
         err.message.includes('Invalid token') ||
         err.message.includes('No matching key found')
@@ -198,6 +239,9 @@ export const handler = async (
       }
       if (err.message.includes('Unsupported method')) {
         return errorResponse({ message: err.message }, 405);
+      }
+      if (err.message.includes('Email is required')) {
+        return errorResponse({ message: err.message }, 400);
       }
     }
 

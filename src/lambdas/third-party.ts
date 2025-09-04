@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { verify } from 'jsonwebtoken';
-import { jwkToPem } from 'jwk-to-pem';
+import jwkToPem from 'jwk-to-pem';
 
 import { UserService, ThirdPartyService } from 'services';
 import { successResponse, errorResponse } from 'utils';
