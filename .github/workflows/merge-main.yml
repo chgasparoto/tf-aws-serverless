@@ -30,6 +30,15 @@ jobs:
       artifact_name: plan-prod.txt
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install dependencies and build
+        run: |
+          npm ci
+          npm run build
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
