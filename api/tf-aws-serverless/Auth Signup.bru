@@ -1,0 +1,22 @@
+meta {
+  name: Auth Signup
+  type: http
+  seq: 1
+}
+
+post {
+  url: https://sokpvmbcy3.execute-api.sa-east-1.amazonaws.com/dev/v1/auth/signup
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "test3@example.com",
+    "password": "TestPassword123!"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

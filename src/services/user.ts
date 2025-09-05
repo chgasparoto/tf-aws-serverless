@@ -15,7 +15,6 @@ export class UserService {
     this.tableName = tableName;
     this.client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
   }
-
   async findByUserId(userId: string): Promise<User | null> {
     const command = new GetCommand({
       TableName: this.tableName,
@@ -78,6 +77,31 @@ export class UserService {
       UpdateExpression:
         'SET ThirdPartyServiceCredentials = :credentials, UpdatedAt = :timestamp',
       ExpressionAttributeValues: {
+        ':credentials': credentials,
+        ':timestamp': timestamp,
+      },
+    });
+
+    await this.client.send(command);
+  }
+
+  async updateThirdPartyService(
+    userId: string,
+    serviceId: string,
+    credentials: string,
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
+
+    const command = new UpdateCommand({
+      TableName: this.tableName,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `USER#${userId}`,
+      },
+      UpdateExpression:
+        'SET ThirdPartyServiceId = :serviceId, ThirdPartyServiceCredentials = :credentials, UpdatedAt = :timestamp',
+      ExpressionAttributeValues: {
+        ':serviceId': serviceId,
         ':credentials': credentials,
         ':timestamp': timestamp,
       },

@@ -97,6 +97,16 @@ module "iam_role_user_management_lambda" {
         "arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${aws_dynamodb_table.users.name}",
         "arn:aws:dynamodb:${var.aws_region}:${local.account_id}:table/${aws_dynamodb_table.users.name}/index/*",
       ]
+    },
+    {
+      sid = "AllowSecretsManagerAccess"
+      actions = [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+      ]
+      resources = [
+        "arn:aws:secretsmanager:${var.aws_region}:${local.account_id}:secret:*",
+      ]
     }
   ]
 }

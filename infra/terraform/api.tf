@@ -89,6 +89,19 @@ resource "aws_api_gateway_resource" "third_party_resource_id" {
   path_part   = "{resourceId}"
 }
 
+# GitHub-specific endpoints
+resource "aws_api_gateway_resource" "third_party_repos" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party_user_resource.id
+  path_part   = "repos"
+}
+
+resource "aws_api_gateway_resource" "third_party_repo" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  parent_id   = aws_api_gateway_resource.third_party_repos.id
+  path_part   = "{repoName}"
+}
+
 # Todo methods
 resource "aws_api_gateway_method" "todos" {
   rest_api_id   = aws_api_gateway_rest_api.this.id
@@ -161,6 +174,32 @@ resource "aws_api_gateway_method" "third_party_resource_by_id" {
   request_parameters = {
     "method.request.path.userId"     = true
     "method.request.path.resourceId" = true
+  }
+}
+
+# GitHub-specific methods
+resource "aws_api_gateway_method" "third_party_repos" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.third_party_repos.id
+  authorization = "COGNITO_USER_POOLS"
+  http_method   = "ANY"
+  authorizer_id = aws_api_gateway_authorizer.this.id
+
+  request_parameters = {
+    "method.request.path.userId" = true
+  }
+}
+
+resource "aws_api_gateway_method" "third_party_repo" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.third_party_repo.id
+  authorization = "COGNITO_USER_POOLS"
+  http_method   = "ANY"
+  authorizer_id = aws_api_gateway_authorizer.this.id
+
+  request_parameters = {
+    "method.request.path.userId"   = true
+    "method.request.path.repoName" = true
   }
 }
 
@@ -248,6 +287,34 @@ resource "aws_api_gateway_integration" "third_party_resource_by_id" {
   }
 }
 
+# GitHub-specific integrations
+resource "aws_api_gateway_integration" "third_party_repos" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.third_party_repos.id
+  http_method             = aws_api_gateway_method.third_party_repos.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_third_party.invoke_arn
+
+  request_parameters = {
+    "integration.request.path.userId" = "method.request.path.userId"
+  }
+}
+
+resource "aws_api_gateway_integration" "third_party_repo" {
+  rest_api_id             = aws_api_gateway_rest_api.this.id
+  resource_id             = aws_api_gateway_resource.third_party_repo.id
+  http_method             = aws_api_gateway_method.third_party_repo.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = module.lambda_third_party.invoke_arn
+
+  request_parameters = {
+    "integration.request.path.userId"   = "method.request.path.userId"
+    "integration.request.path.repoName" = "method.request.path.repoName"
+  }
+}
+
 resource "aws_api_gateway_deployment" "this" {
   rest_api_id = aws_api_gateway_rest_api.this.id
 
@@ -271,6 +338,8 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_resource.third_party_user_resource,
       aws_api_gateway_resource.third_party_resource,
       aws_api_gateway_resource.third_party_resource_id,
+      aws_api_gateway_resource.third_party_repos,
+      aws_api_gateway_resource.third_party_repo,
       aws_api_gateway_method.todos,
       aws_api_gateway_method.todo,
       aws_api_gateway_method.signup,
@@ -278,6 +347,8 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_method.user,
       aws_api_gateway_method.third_party_resources,
       aws_api_gateway_method.third_party_resource_by_id,
+      aws_api_gateway_method.third_party_repos,
+      aws_api_gateway_method.third_party_repo,
       aws_api_gateway_integration.todos,
       aws_api_gateway_integration.todo,
       aws_api_gateway_integration.signup,
@@ -285,6 +356,8 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_integration.user,
       aws_api_gateway_integration.third_party_resources,
       aws_api_gateway_integration.third_party_resource_by_id,
+      aws_api_gateway_integration.third_party_repos,
+      aws_api_gateway_integration.third_party_repo,
       aws_api_gateway_method.cors,
       aws_api_gateway_integration.cors,
       aws_api_gateway_method_response.cors,
@@ -293,6 +366,14 @@ resource "aws_api_gateway_deployment" "this" {
       aws_api_gateway_integration.cors_todo,
       aws_api_gateway_method_response.cors_todo,
       aws_api_gateway_integration_response.cors_todo,
+      aws_api_gateway_method.cors_signup,
+      aws_api_gateway_integration.cors_signup,
+      aws_api_gateway_method_response.cors_signup,
+      aws_api_gateway_integration_response.cors_signup,
+      aws_api_gateway_method.cors_users,
+      aws_api_gateway_integration.cors_users,
+      aws_api_gateway_method_response.cors_users,
+      aws_api_gateway_integration_response.cors_users,
       aws_api_gateway_gateway_response.cors_4xx,
       aws_api_gateway_gateway_response.cors_5xx,
     ]))
@@ -452,6 +533,104 @@ resource "aws_api_gateway_integration_response" "cors_todo" {
   }
 
   depends_on = [aws_api_gateway_integration.cors_todo]
+}
+
+# CORS for Auth endpoints
+resource "aws_api_gateway_method" "cors_signup" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.signup.id
+  authorization = "NONE"
+  http_method   = "OPTIONS"
+}
+
+resource "aws_api_gateway_integration" "cors_signup" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.signup.id
+  http_method = aws_api_gateway_method.cors_signup.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "cors_signup" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.signup.id
+  http_method = aws_api_gateway_method.cors_signup.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = false
+    "method.response.header.Access-Control-Allow-Methods"     = false
+    "method.response.header.Access-Control-Allow-Origin"      = false
+  }
+}
+
+resource "aws_api_gateway_integration_response" "cors_signup" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.signup.id
+  http_method = aws_api_gateway_method.cors_signup.http_method
+  status_code = aws_api_gateway_method_response.cors_signup.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers"     = local.formatted_cors.headers
+    "method.response.header.Access-Control-Allow-Methods"     = local.formatted_cors.methods
+    "method.response.header.Access-Control-Allow-Origin"      = local.formatted_cors.origins
+    "method.response.header.Access-Control-Allow-Credentials" = local.formatted_cors.credentials
+  }
+
+  depends_on = [aws_api_gateway_integration.cors_signup]
+}
+
+# CORS for Users endpoints
+resource "aws_api_gateway_method" "cors_users" {
+  rest_api_id   = aws_api_gateway_rest_api.this.id
+  resource_id   = aws_api_gateway_resource.users.id
+  authorization = "NONE"
+  http_method   = "OPTIONS"
+}
+
+resource "aws_api_gateway_integration" "cors_users" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.users.id
+  http_method = aws_api_gateway_method.cors_users.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "cors_users" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.users.id
+  http_method = aws_api_gateway_method.cors_users.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Credentials" = true
+    "method.response.header.Access-Control-Allow-Headers"     = false
+    "method.response.header.Access-Control-Allow-Methods"     = false
+    "method.response.header.Access-Control-Allow-Origin"      = false
+  }
+}
+
+resource "aws_api_gateway_integration_response" "cors_users" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  resource_id = aws_api_gateway_resource.users.id
+  http_method = aws_api_gateway_method.cors_users.http_method
+  status_code = aws_api_gateway_method_response.cors_users.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers"     = local.formatted_cors.headers
+    "method.response.header.Access-Control-Allow-Methods"     = local.formatted_cors.methods
+    "method.response.header.Access-Control-Allow-Origin"      = local.formatted_cors.origins
+    "method.response.header.Access-Control-Allow-Credentials" = local.formatted_cors.credentials
+  }
+
+  depends_on = [aws_api_gateway_integration.cors_users]
 }
 
 resource "aws_api_gateway_gateway_response" "cors_4xx" {
