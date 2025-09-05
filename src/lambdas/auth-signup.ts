@@ -10,7 +10,6 @@ import {
 import { UserService } from 'services';
 import { User, UserSchema } from 'types';
 import { successResponse, errorResponse } from 'utils';
-import { ZodError } from 'zod';
 
 const cognitoClient = new CognitoIdentityProviderClient({});
 const userService = new UserService(process.env.USERS_TABLE_NAME || '');

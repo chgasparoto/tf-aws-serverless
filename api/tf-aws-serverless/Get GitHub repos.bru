@@ -1,0 +1,27 @@
+meta {
+  name: Get GitHub repos
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BASE_URL}}/third-party/users/333c3a1a-f011-70c8-fa45-621f35546c20/repos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{JWT_TOKEN}}
+}
+
+body:json {
+  {
+      "email": "test1@example.com",
+      "thirdPartyServiceId": "github",
+      "thirdPartyServiceCredentials": "tf-serverless-dev-github-credentials"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

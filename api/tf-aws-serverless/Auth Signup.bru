@@ -1,0 +1,22 @@
+meta {
+  name: Auth Signup
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BASE_URL}}/auth/signup
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "test5@example.com",
+    "password": "TestPassword123!"
+  }
+}
+
+settings {
+  encodeUrl: true
+}

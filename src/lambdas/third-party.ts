@@ -89,6 +89,170 @@ async function processThirdPartyRequest(
     user.ThirdPartyServiceCredentials,
   );
 
+  // Handle service-specific endpoints
+  const service = credentials.service || 'generic';
+
+  // Check if this is a GitHub-specific endpoint based on URL path
+  const isGitHubEndpoint =
+    event.resource?.includes('/repos') ||
+    event.path?.includes('/repos') ||
+    pathParams?.repoName;
+
+  if (isGitHubEndpoint && service === 'github') {
+    return await handleGitHubRequest(
+      thirdPartyService,
+      credentials,
+      method,
+      pathParams,
+      body,
+    );
+  }
+
+  switch (service) {
+    case 'github':
+      return await handleGitHubRequest(
+        thirdPartyService,
+        credentials,
+        method,
+        pathParams,
+        body,
+      );
+    case 'slack':
+      return await handleSlackRequest(
+        thirdPartyService,
+        credentials,
+        method,
+        pathParams,
+        body,
+      );
+    case 'jira':
+      return await handleJiraRequest(
+        thirdPartyService,
+        credentials,
+        method,
+        pathParams,
+        body,
+      );
+    default:
+      return await handleGenericRequest(
+        thirdPartyService,
+        credentials,
+        method,
+        pathParams,
+        body,
+      );
+  }
+}
+
+async function handleGitHubRequest(
+  thirdPartyService: ThirdPartyService,
+  credentials: any,
+  method: string,
+  pathParams: any,
+  body: any,
+): Promise<any> {
+  switch (method) {
+    case 'GET':
+      if (pathParams?.resourceId) {
+        // GET /third-party/users/{userId}/repos/{repoName}
+        return await thirdPartyService.getGitHubRepo(
+          credentials,
+          credentials.username,
+          pathParams.resourceId,
+        );
+      } else if (pathParams?.action === 'user') {
+        // GET /third-party/users/{userId}/user
+        return await thirdPartyService.getGitHubUser(credentials);
+      } else {
+        // GET /third-party/users/{userId}/repos
+        return await thirdPartyService.getGitHubRepos(credentials);
+      }
+
+    case 'POST':
+      // POST /third-party/users/{userId}/repos
+      return await thirdPartyService.createGitHubRepo(credentials, body);
+
+    default:
+      throw new Error(`Unsupported method "${method}" for GitHub`);
+  }
+}
+
+async function handleSlackRequest(
+  thirdPartyService: ThirdPartyService,
+  credentials: any,
+  method: string,
+  pathParams: any,
+  body: any,
+): Promise<any> {
+  switch (method) {
+    case 'GET':
+      if (pathParams?.action === 'channels') {
+        // GET /third-party/users/{userId}/channels
+        return await thirdPartyService.getSlackChannels(credentials);
+      }
+      throw new Error('Invalid Slack endpoint');
+
+    case 'POST':
+      if (pathParams?.action === 'message') {
+        // POST /third-party/users/{userId}/message
+        const { channel, text } = body;
+        if (!channel || !text) {
+          throw new Error('Channel and text are required for Slack message');
+        }
+        return await thirdPartyService.sendSlackMessage(
+          credentials,
+          channel,
+          text,
+        );
+      }
+      throw new Error('Invalid Slack endpoint');
+
+    default:
+      throw new Error(`Unsupported method "${method}" for Slack`);
+  }
+}
+
+async function handleJiraRequest(
+  thirdPartyService: ThirdPartyService,
+  credentials: any,
+  method: string,
+  pathParams: any,
+  body: any,
+): Promise<any> {
+  switch (method) {
+    case 'GET':
+      if (pathParams?.action === 'issues') {
+        // GET /third-party/users/{userId}/issues
+        const jql = pathParams?.jql;
+        return await thirdPartyService.getJiraIssues(credentials, jql);
+      } else if (pathParams?.action === 'project' && pathParams?.projectKey) {
+        // GET /third-party/users/{userId}/project/{projectKey}
+        return await thirdPartyService.getJiraProject(
+          credentials,
+          pathParams.projectKey,
+        );
+      }
+      throw new Error('Invalid Jira endpoint');
+
+    case 'POST':
+      if (pathParams?.action === 'issue') {
+        // POST /third-party/users/{userId}/issue
+        return await thirdPartyService.createJiraIssue(credentials, body);
+      }
+      throw new Error('Invalid Jira endpoint');
+
+    default:
+      throw new Error(`Unsupported method "${method}" for Jira`);
+  }
+}
+
+async function handleGenericRequest(
+  thirdPartyService: ThirdPartyService,
+  credentials: any,
+  method: string,
+  pathParams: any,
+  body: any,
+): Promise<any> {
   switch (method) {
     case 'GET':
       if (pathParams?.resourceId) {

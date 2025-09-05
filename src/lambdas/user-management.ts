@@ -100,38 +100,56 @@ async function processUserRequest(event: APIGatewayProxyEvent): Promise<any> {
         throw new Error('Email is required');
       }
 
-      // Check if user already exists by email
-      const existingUser = await userService.findByEmail(body.email);
+      // Check if there's an authorization header
+      const authHeaderPost =
+        event?.headers?.Authorization || event?.headers?.authorization;
 
-      if (existingUser) {
-        // User exists, require authentication for updates
-        const authHeader =
-          event?.headers?.Authorization || event?.headers?.authorization;
-        if (!authHeader) {
-          throw new Error('Authorization header required for profile updates');
-        }
-
-        const token = authHeader.startsWith('Bearer ')
-          ? authHeader.substring(7)
-          : authHeader;
+      if (authHeaderPost) {
+        // User is authenticated - use their actual userId
+        const token = authHeaderPost.startsWith('Bearer ')
+          ? authHeaderPost.substring(7)
+          : authHeaderPost;
 
         const decodedToken = await verifyCognitoToken(token);
         const userId = decodedToken.sub;
 
-        // Verify the authenticated user matches the email
-        if (userId !== existingUser.UserId) {
-          throw new Error('Unauthorized access to user data');
-        }
+        // Check if user already exists by userId
+        const existingUser = await userService.findByUserId(userId);
 
-        // Update existing user
-        await userService.updateThirdPartyCredentials(
-          userId,
-          body.thirdPartyServiceCredentials,
-        );
-        return { message: 'User credentials updated successfully' };
+        if (existingUser) {
+          // Update existing user service and credentials
+          await userService.updateThirdPartyService(
+            userId,
+            body.thirdPartyServiceId,
+            body.thirdPartyServiceCredentials,
+          );
+          return {
+            message: 'User credentials updated successfully',
+            userId: userId,
+            service: body.thirdPartyServiceId,
+          };
+        } else {
+          // Create new user with actual userId (not temporary)
+          const userData: User = {
+            UserId: userId,
+            Email: body.email,
+            ThirdPartyServiceId: body.thirdPartyServiceId,
+            ThirdPartyServiceCredentials: body.thirdPartyServiceCredentials,
+          };
+
+          // Validate user data
+          const validatedUser = UserSchema.parse(userData);
+
+          // Create new user
+          const createdUser = await userService.create(validatedUser);
+          return {
+            message: 'User created successfully',
+            userId: userId,
+            email: body.email,
+          };
+        }
       } else {
-        // New user creation - no authentication required
-        // Generate a temporary user ID (this will be replaced when they authenticate)
+        // No authentication - create temporary user for unauthenticated signup
         const tempUserId = `temp_${Date.now()}_${Math.random()
           .toString(36)
           .substr(2, 9)}`;
@@ -175,15 +193,20 @@ async function processUserRequest(event: APIGatewayProxyEvent): Promise<any> {
         throw new Error('Unauthorized access to user data');
       }
 
-      // Update user credentials
-      if (body.thirdPartyServiceCredentials) {
-        await userService.updateThirdPartyCredentials(
+      // Update user service and credentials
+      if (body.thirdPartyServiceCredentials && body.thirdPartyServiceId) {
+        await userService.updateThirdPartyService(
           userIdPut,
+          body.thirdPartyServiceId,
           body.thirdPartyServiceCredentials,
         );
-        return { message: 'User credentials updated successfully' };
+        return {
+          message: 'User credentials updated successfully',
+          userId: userIdPut,
+          service: body.thirdPartyServiceId,
+        };
       }
-      throw new Error('No credentials provided for update');
+      throw new Error('Service ID and credentials are required for update');
 
     default:
       throw new Error(`Unsupported method "${method}"`);
